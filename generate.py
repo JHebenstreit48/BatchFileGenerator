@@ -1,47 +1,93 @@
 import os
 import shutil
+from typing import List, Tuple
+from templates import get_template
 
 
-def prompt_user():
-    sections = input(
-        (
-            "📁 Enter one or more nested folder paths (comma-separated, "
-            "e.g., Shared/Utils, Features/Auth): "
-        )
-    ).split(",")
-    sections = [s.strip() for s in sections if s.strip()]
+def prompt_user() -> Tuple[str, str, List[Tuple[str, List[str]]], str, dict]:
+    mode = input(
+        "📍 Generate directly to project or stage to output? "
+        "(project/staging): "
+    ).strip().lower()
 
-    extension = (
-        input(
-            "📄 Enter the file extension (e.g., tsx, js, py): "
-        ).strip().lstrip(".")
+    base_path = (
+        input("📁 Project base path: ").strip()
+        if mode == "project" else "output"
     )
 
-    filenames = input(
-        "📝 Enter filenames (comma-separated, no extension): "
-    ).split(",")
-    filenames = [name.strip() for name in filenames if name.strip()]
+    pairs_input = input(
+        "📂 Enter folder:filenames (e.g., A:x,y | B:z): "
+    ).split("|")
 
-    return sections, extension, filenames
+    folder_map = []
+    for pair in pairs_input:
+        if ":" not in pair:
+            continue
+        folder, files = pair.split(":")
+        filenames = [f.strip() for f in files.split(",") if f.strip()]
+        folder_map.append((folder.strip(), filenames))
+
+    extension = input(
+        "📝 File extension (e.g., tsx, js, py): "
+    ).strip().lstrip(".")
+
+    overrides = {}
+    if extension == "tsx":
+        override_name = input(
+            "🔁 Exported component name (blank = use file name): "
+        ).strip()
+        header_text = input(
+            "📝 Header text (blank = use file name): "
+        ).strip()
+        markdown_path = input(
+            "📄 Markdown path (optional, blank = auto): "
+        ).strip()
+
+        overrides = {
+            "export_name": override_name,
+            "header_text": header_text,
+            "markdown_path": markdown_path,
+        }
+
+    return mode, base_path, folder_map, extension, overrides
 
 
-def generate_files(sections: list[str], extension: str, filenames: list[str]):
-    base_output = "output"
-    os.makedirs(base_output, exist_ok=True)
+def generate_files(
+    mode: str,
+    base_path: str,
+    folder_map: List[Tuple[str, List[str]]],
+    extension: str,
+    overrides: dict
+):
+    os.makedirs(base_path, exist_ok=True)
 
-    for section in sections:
-        section_path = os.path.join(base_output, section)
-        os.makedirs(section_path, exist_ok=True)
+    for folder, files in folder_map:
+        folder_path = os.path.join(base_path, folder)
+        os.makedirs(folder_path, exist_ok=True)
 
-        for name in filenames:
-            file_path = os.path.join(section_path, f"{name}.{extension}")
-            with open(file_path, "w") as f:
-                f.write(
-                    f"// Auto-generated {extension.upper()} file: {name}\n\n"
-                )
+        for name in files:
+            file_path = os.path.join(folder_path, f"{name}.{extension}")
 
+            if os.path.exists(file_path):
+                response = input(
+                    f"⚠️ {file_path} exists. Overwrite with template? "
+                    "(y/n): "
+                ).lower()
+                if response != "y":
+                    print(f"⏭️ Skipped: {file_path}")
+                    continue
+
+            content = get_template(
+                extension,
+                overrides.get("export_name") or name,
+                folder,
+                overrides.get("header_text"),
+                overrides.get("markdown_path")
+            )
+
+            if not content:
                 if extension == "tsx":
-                    f.write(
+                    content = (
                         f"export default function {name}() {{\n"
                         f"  return (\n"
                         f"    <div>\n"
@@ -51,44 +97,49 @@ def generate_files(sections: list[str], extension: str, filenames: list[str]):
                         f"}}\n"
                     )
                 elif extension in ["js", "ts"]:
-                    f.write(
+                    content = (
                         f"export const {name} = () => {{\n"
                         f"  console.log('{name} loaded');\n"
                         f"}};\n"
                     )
                 elif extension == "py":
-                    f.write(
+                    content = (
                         f"def {name.lower()}():\n"
                         f"    print('{name} function')\n"
                     )
                 else:
-                    f.write(f"// {name}.{extension} - customize as needed\n")
+                    content = (
+                        f"// {name}.{extension} - customize as needed\n"
+                    )
+
+            with open(file_path, "w") as f:
+                auto_comment = (
+                    f"// Auto-generated {extension.upper()} file: "
+                    f"{name}\n\n"
+                )
+                f.write(auto_comment + content)
 
             print(f"✅ Created: {file_path}")
 
-
-def move_to_project(sections: list[str]):
-    move = input(
-        "🚚 Move generated folders to another project? (y/n): "
-    ).lower()
-    if move != "y":
-        return
-
-    destination = input("📍 Enter the full destination path: ").strip()
-
-    for section in sections:
-        src = os.path.join("output", section)
-        dest = os.path.join(destination, section)
-
-        try:
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            shutil.copytree(src, dest, dirs_exist_ok=True)
-            print(f"📁 Moved '{section}' to '{dest}'")
-        except Exception as e:
-            print(f"❌ Failed to move '{section}': {e}")
+    if mode == "staging":
+        move = input("🚚 Move folders to another project? (y/n): ").lower()
+        if move == "y":
+            dest = input("📍 Destination path: ").strip()
+            for folder, _ in folder_map:
+                src = os.path.join(base_path, folder)
+                dest_path = os.path.join(dest, folder)
+                try:
+                    os.makedirs(
+                        os.path.dirname(dest_path), exist_ok=True
+                    )
+                    shutil.copytree(
+                        src, dest_path, dirs_exist_ok=True
+                    )
+                    print(f"📁 Moved '{folder}' to '{dest_path}'")
+                except Exception as e:
+                    print(f"❌ Failed to move '{folder}': {e}")
 
 
 if __name__ == "__main__":
-    sections, extension, filenames = prompt_user()
-    generate_files(sections, extension, filenames)
-    move_to_project(sections)
+    mode, base_path, folder_map, extension, overrides = prompt_user()
+    generate_files(mode, base_path, folder_map, extension, overrides)
