@@ -71,29 +71,39 @@ def generate_files(
     header_texts = overrides.get("header_texts", [])
     markdown_paths = overrides.get("markdown_paths", [])
 
+    file_index = 0
+
     for folder, files in folder_map:
         folder_path = os.path.join(base_path, folder)
         os.makedirs(folder_path, exist_ok=True)
 
-        for idx, name in enumerate(files):
+        for name in files:
             file_path = os.path.join(folder_path, f"{name}.{extension}")
 
             if os.path.exists(file_path):
                 response = input(
-                    f"⚠️ {file_path} exists. Overwrite with template? (y/n): "
+                    f"⚠️ {file_path} exists. Overwrite with template? "
+                    f"(y/n): "
                 ).lower()
                 if response != "y":
                     print(f"⏭️ Skipped: {file_path}")
+                    file_index += 1
                     continue
 
             export_name = (
-                export_names[idx] if idx < len(export_names) else name
+                export_names[file_index]
+                if file_index < len(export_names)
+                else name
             )
             header_text = (
-                header_texts[idx] if idx < len(header_texts) else name
+                header_texts[file_index]
+                if file_index < len(header_texts)
+                else name
             )
             markdown_path = (
-                markdown_paths[idx] if idx < len(markdown_paths) else None
+                markdown_paths[file_index]
+                if file_index < len(markdown_paths)
+                else None
             )
 
             content = get_template(
@@ -107,38 +117,44 @@ def generate_files(
             if not content:
                 if extension == "tsx":
                     content = (
-                        f"export default function {name}() {{\n"
+                        f"export default function {export_name}() {{\n"
                         f"  return (\n"
                         f"    <div>\n"
-                        f"      <h1>{name}</h1>\n"
+                        f"      <h1>{header_text}</h1>\n"
                         f"    </div>\n"
                         f"  );\n"
                         f"}}\n"
                     )
                 elif extension in ["js", "ts"]:
                     content = (
-                        f"export const {name} = () => {{\n"
-                        f"  console.log('{name} loaded');\n"
+                        f"export const {export_name} = () => {{\n"
+                        f"  console.log('{header_text} loaded');\n"
                         f"}};\n"
                     )
                 elif extension == "py":
                     content = (
-                        f"def {name.lower()}():\n"
-                        f"    print('{name} function')\n"
+                        f"def {export_name.lower()}():\n"
+                        f"    print('{header_text} function')\n"
                     )
                 else:
-                    content = f"// {name}.{extension} - customize as needed\n"
+                    content = (
+                        f"// {name}.{extension} - customize as needed\n"
+                    )
 
             with open(file_path, "w") as f:
                 comment = (
-                    f"// Auto-generated {extension.upper()} file: {name}\n\n"
+                    f"// Auto-generated {extension.upper()} file: "
+                    f"{name}\n\n"
                 )
                 f.write(comment + content)
 
             print(f"✅ Created: {file_path}")
+            file_index += 1
 
     if mode == "staging":
-        move = input("🚚 Move folders to another project? (y/n): ").lower()
+        move = input(
+            "🚚 Move folders to another project? (y/n): "
+        ).lower()
         if move == "y":
             dest = input("📍 Destination path: ").strip()
             for folder, _ in folder_map:
@@ -146,7 +162,11 @@ def generate_files(
                 dest_path = os.path.join(dest, folder)
                 try:
                     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                    shutil.copytree(src, dest_path, dirs_exist_ok=True)
+                    shutil.copytree(
+                        src,
+                        dest_path,
+                        dirs_exist_ok=True
+                    )
                     print(f"📁 Moved '{folder}' to '{dest_path}'")
                 except Exception as e:
                     print(f"❌ Failed to move '{folder}': {e}")
