@@ -2,7 +2,7 @@ def tsx_page_template(
     component_name: str, header_text: str, markdown_path: str
 ) -> str:
     return (
-        f'import Header from "@/Components/PageComponents/Header";\n'
+        f'import Header from "@/Components/Shared/Header";\n'
         f'import Notes from "@/Components/PageComponents/Notes/'
         f'NotesRender";\n\n'
         f"const {component_name} = () => {{\n"
