@@ -33,12 +33,9 @@ def get_template(
 
     # Determine fallback markdown path
     if markdown_path_override:
-        markdown_path = markdown_path_override
-        if not markdown_path.startswith("/"):
-            markdown_path = "/" + markdown_path
+        markdown_path = markdown_path_override.lstrip("/\\")
     else:
-        markdown_path = (
-            "/" + folder_path.strip("/\\") + f"/{component_name}.md")
+        markdown_path = folder_path.strip("/\\") + f"/{component_name}.md"
 
     # Determine fallback header text
     header_text = header_text_override or component_name.replace("_", " ")
