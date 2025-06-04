@@ -161,11 +161,28 @@ def prompt_user() -> Tuple[
         os.makedirs(base_path, exist_ok=True)
         print(f"✅ Created and moved into: {base_path}")
 
-    num_files = int(
-        input(
-            "🔢 How many files do you want to generate? (1 or more): "
-        ).strip()
-    )
+    file_names = input(
+        "📝 Enter filenames (comma-separated, e.g. Home,About,Contact): "
+    ).strip().split(",")
+    file_names = [f.strip() for f in file_names if f.strip()]
+
+    export_names = input(
+        "🔁 Enter exported component names (comma-separated): "
+    ).strip().split(",")
+    export_names = [e.strip() for e in export_names if e.strip()]
+
+    header_texts = input(
+        "📝 Enter header texts (comma-separated, slashes allowed): "
+    ).strip().split(",")
+    header_texts = [h.strip() for h in header_texts if h.strip()]
+
+    if not (
+        len(file_names) == len(export_names) == len(header_texts)
+    ):
+        raise ValueError(
+            "⚠️ The number of filenames, component names, and "
+            "header texts must match."
+        )
 
     folder_map = []
     overrides = {
@@ -174,18 +191,7 @@ def prompt_user() -> Tuple[
         "markdown_paths": []
     }
 
-    for _ in range(num_files):
-        file_name = input(
-            "📝 Enter filename (without extension): "
-        ).strip()
-
-        export_name = input(
-            f"🔁 Enter exported component name for {file_name}: "
-        ).strip()
-        header_text = input(
-            f"📝 Enter header text for {file_name}: "
-        ).strip()
-
+    for i, file_name in enumerate(file_names):
         print(f"🌐 Select markdown file for {file_name}:")
         markdown_full_path = pick_markdown_file(base_start_path)
         markdown_relative_path = trim_markdown_path(
@@ -194,8 +200,8 @@ def prompt_user() -> Tuple[
 
         folder_map.append((".", [file_name]))
 
-        overrides["export_names"].append(export_name)
-        overrides["header_texts"].append(header_text)
+        overrides["export_names"].append(export_names[i])
+        overrides["header_texts"].append(header_texts[i])
         overrides["markdown_paths"].append(markdown_relative_path)
 
     extension = input(
