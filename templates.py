@@ -15,7 +15,6 @@ def tsx_page_template(
         f'            <Header text="{header_text}" />\n'
         f"            <Notes\n"
         f"                filePath={{markdownFilePath}}\n"
-        f'                markdownContent="markdownContent"\n'
         f"            />\n"
         f"        </>\n"
         f"    );\n"
