@@ -1,10 +1,13 @@
 def tsx_page_template(
-    component_name: str, header_text: str, markdown_path: str
+    component_name: str,
+    header_text: str,
+    markdown_path: str
 ) -> str:
     return (
-        f'import Header from "@/Components/Shared/Header";\n'
-        f'import Notes from "@/Components/PageComponents/Notes/'
-        f'NotesRender";\n\n'
+        f"import PageLayout from '@/Components/NavigationUI/PageLayout';\n"
+        f"import Header from '@/Components/Shared/Header';\n"
+        f"import Notes from "
+        f"'@/Components/PageComponents/Notes/NotesRender';\n\n"
         f"const {component_name} = () => {{\n"
         f'    const markdownFilePath = "{markdown_path}";\n\n'
         f"    return (\n"
@@ -26,7 +29,7 @@ def get_template(
     component_name: str,
     folder_path: str,
     header_text_override: str = None,
-    markdown_path_override: str = None
+    markdown_path_override: str = None,
 ) -> str:
     if extension != "tsx":
         return ""
