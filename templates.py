@@ -12,10 +12,12 @@ def tsx_page_template(
         f'    const markdownFilePath = "{markdown_path}";\n\n'
         f"    return (\n"
         f"        <>\n"
+        f"            <PageLayout>\n"
         f'            <Header text="{header_text}" />\n'
         f"            <Notes\n"
         f"                filePath={{markdownFilePath}}\n"
         f"            />\n"
+        f"            </PageLayout>\n"
         f"        </>\n"
         f"    );\n"
         f"}};\n\n"
