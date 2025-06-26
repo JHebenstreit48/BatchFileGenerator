@@ -13,9 +13,9 @@ def navigate_folders(start_path: Path) -> Path:
             "[Use this folder and generate files]",
         ]
 
-        subdirs = sorted([
-            f.name for f in current_path.iterdir() if f.is_dir()
-        ])
+        subdirs = sorted(
+            [f.name for f in current_path.iterdir() if f.is_dir()]
+        )
         entries.extend(subdirs)
 
         choice = inquirer.select(
@@ -36,6 +36,50 @@ def navigate_folders(start_path: Path) -> Path:
             current_path = new_folder
         elif choice == "[Use this folder and generate files]":
             return current_path
+        else:
+            current_path = current_path / choice
+
+
+def navigate_markdown_path(start_path: Path) -> str:
+    current_path = start_path.resolve()
+
+    while True:
+        entries = [
+            "[Up one folder]",
+            "[Enter markdown filename here]",
+        ]
+
+        folders = sorted(
+            [f.name for f in current_path.iterdir() if f.is_dir()]
+        )
+        entries.extend(folders)
+
+        choice = inquirer.select(
+            message=f"Navigate to markdown file folder: {current_path}",
+            choices=entries,
+            instruction="(Arrow keys to browse, Enter to select)",
+        ).execute()
+
+        if choice == "[Up one folder]":
+            if current_path.parent != current_path:
+                current_path = current_path.parent
+        elif choice == "[Enter markdown filename here]":
+            filename = inquirer.text(
+                message="Markdown filename (no .md):"
+            ).execute()
+            if filename:
+                full_path = (current_path / filename).resolve()
+                parts = full_path.parts
+
+                try:
+                    notes_index = parts.index("Notes")
+                    # Skip 'Notes' and use the rest of the path
+                    trimmed_parts = parts[notes_index + 1:]
+                    rel_path = "/".join(trimmed_parts)
+                    return rel_path
+                except ValueError:
+                    print("⚠️ Could not find 'Notes' in path. Please retry.")
+                    return navigate_markdown_path(start_path)
         else:
             current_path = current_path / choice
 
@@ -82,45 +126,51 @@ def main():
         default=True,
     ).execute()
 
-    # Collect all inputs
     component_names = []
     markdown_paths = []
     header_texts = []
 
     if multiple:
-        component_names = inquirer.text(
-            message="Enter component names (comma-separated):"
-        ).execute().split(",")
-
+        component_names = (
+            inquirer.text(message="Enter component names (comma-separated):")
+            .execute()
+            .split(",")
+        )
         component_names = [
             name.strip() for name in component_names if name.strip()
         ]
 
-        markdown_paths = inquirer.text(
-            message="Enter markdown paths (comma-separated, same order):"
-        ).execute().split(",")
+        if template_category == "Pages":
+            for name in component_names:
+                print(f"📄 Set markdown file for: {name}")
+                md_path = navigate_markdown_path(base_root)
+                markdown_paths.append(md_path)
+        else:
+            markdown_paths = [""] * len(component_names)
 
-        markdown_paths = [
-            path.strip() for path in markdown_paths if path.strip()
-        ]
-
-        header_texts = inquirer.text(
-            message="Enter header texts (comma-separated, same order):"
-        ).execute().split(",")
-
+        header_texts = (
+            inquirer.text(
+                message="Enter header texts (comma-separated, same order):"
+            )
+            .execute()
+            .split(",")
+        )
         header_texts = [text.strip() for text in header_texts if text.strip()]
     else:
         name = inquirer.text(message="Component name:").execute().strip()
         component_names.append(name)
 
-        md_path = inquirer.text(
-            message="Enter markdown path (optional):"
-        ).execute().strip()
-        markdown_paths.append(md_path)
+        if template_category == "Pages":
+            print(f"📄 Set markdown file for: {name}")
+            markdown_paths.append(navigate_markdown_path(base_root))
+        else:
+            markdown_paths.append("")
 
-        header = inquirer.text(
-            message="Enter header text (optional):"
-        ).execute().strip()
+        header = (
+            inquirer.text(
+                message="Enter header text (optional):"
+            ).execute().strip()
+        )
         header_texts.append(header)
 
     for i, component_name in enumerate(component_names):
@@ -129,12 +179,14 @@ def main():
         markdown_path = markdown_paths[i] if i < len(markdown_paths) else None
         header_text = header_texts[i] if i < len(header_texts) else None
 
-        if template_category == "Pages":
-            template_type = "tsx"
-        elif template_category == "Full Topics Navigation":
-            template_type = "nav"
-        else:
-            template_type = "tsx"
+        template_type = (
+            "tsx"
+            if template_category == "Pages"
+            else (
+                "nav" if template_category == "Full Topics Navigation"
+                else "tsx"
+            )
+        )
 
         output = get_template(
             template_type=template_type,
