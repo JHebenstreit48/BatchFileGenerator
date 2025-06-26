@@ -1,5 +1,38 @@
 from pages_template import tsx_page_template
-from routes_templates import nav_topic_template
+
+
+def nav_topic_template(
+    topic_name: str,
+    subpages: list[str],
+    import_path: str
+) -> str:
+    const_name = f"{topic_name}Nav"
+    normalized_path = import_path.replace("\\", "/")
+
+    imports = [
+        "import { Subpage } from "
+        "'@/Navigation/CombinedNav/CombinedNavAndTypes/NavigationTypes';\n"
+    ]
+
+    for subpage in subpages:
+        imports.append(
+            f"import {subpage} from "
+            f"'@/{normalized_path}/{subpage}';"
+        )
+
+    subpage_list = ",\n    ".join(subpages)
+
+    output = (
+        "\n".join(imports)
+        + "\n\n"
+        + f"const {const_name}: Subpage = {{\n"
+        + f"  name: '{topic_name}',\n"
+        + f"  subpages: [\n    {subpage_list}\n  ]\n"
+        + "};\n\n"
+        + f"export default {const_name};\n"
+    )
+
+    return output
 
 
 def get_template(

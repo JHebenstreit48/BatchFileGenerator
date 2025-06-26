@@ -26,22 +26,20 @@ def tsx_page_template(
 
 
 def get_template(
-    extension: str,
+    template_type: str,
     component_name: str,
     folder_path: str,
     header_text_override: str = None,
     markdown_path_override: str = None,
 ) -> str:
-    if extension != "tsx":
+    if template_type != "tsx":
         return ""
 
-    # Determine fallback markdown path
     if markdown_path_override:
         markdown_path = markdown_path_override.lstrip("/\\")
     else:
         markdown_path = folder_path.strip("/\\") + f"/{component_name}.md"
 
-    # Determine fallback header text
     header_text = header_text_override or component_name.replace("_", " ")
 
     return tsx_page_template(component_name, header_text, markdown_path)
