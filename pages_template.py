@@ -7,7 +7,7 @@ def tsx_page_template(
         f"import PageLayout from '@/Components/NavigationUI/PageLayout';\n"
         f"import Header from '@/Components/Shared/Header';\n"
         f"import Notes from "
-        f"'@/Components/PageComponents/Notes/NotesRender';\n\n"
+        f"'@/Components/PageComponents/Notes/NotesRendering/Notes';\n\n"
         f"const {component_name} = () => {{\n"
         f'    const markdownFilePath = "{markdown_path}";\n\n'
         f"    return (\n"
