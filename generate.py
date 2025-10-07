@@ -3,6 +3,70 @@ from InquirerPy import inquirer
 from template_dispatcher import get_template
 
 
+# ---------- roots and filters ----------
+
+def _ascend_to(folder_name: str, start: Path) -> Path:
+    p = start.resolve()
+    while p != p.parent:
+        if p.name == folder_name:
+            return p
+        p = p.parent
+    raise RuntimeError(f"Could not find '{folder_name}' above {start}")
+
+
+def _notes_projects_root() -> Path:
+    cb = _ascend_to("CodingBackup", Path.cwd())
+    root = cb / "Notes-Projects"
+    if not root.is_dir():
+        raise RuntimeError(f"Missing folder: {root}")
+    return root
+
+
+def _list_dirs(path: Path) -> list[str]:
+    return sorted([f.name for f in path.iterdir() if f.is_dir()])
+
+
+def _list_project_dirs(path: Path) -> list[str]:
+    return sorted([n for n in _list_dirs(path) if n.endswith("-Project")])
+
+
+def _find_all_api_dirs(notes_projects: Path) -> list[Path]:
+    apis = []
+    for proj in _list_project_dirs(notes_projects):
+        p = notes_projects / proj
+        for d in p.iterdir():
+            if d.is_dir() and d.name.endswith("-API"):
+                apis.append(d)
+    return sorted(apis, key=lambda x: x.name.lower())
+
+
+# ---------- navigation helpers ----------
+
+def navigate_projects(start_path: Path) -> Path:
+    current_path = start_path.resolve()
+
+    while True:
+        entries = [
+            "[Up one folder]",
+            "[Use this folder and generate files]",
+        ]
+        entries.extend(_list_project_dirs(current_path))
+
+        choice = inquirer.select(
+            message=f"Projects root: {current_path}",
+            choices=entries,
+            instruction="(Arrows / Enter)",
+        ).execute()
+
+        if choice == "[Up one folder]":
+            if current_path.parent != current_path:
+                current_path = current_path.parent
+        elif choice == "[Use this folder and generate files]":
+            return current_path
+        else:
+            current_path = current_path / choice
+
+
 def navigate_folders(start_path: Path) -> Path:
     current_path = start_path.resolve()
 
@@ -12,16 +76,12 @@ def navigate_folders(start_path: Path) -> Path:
             "[Create new folder]",
             "[Use this folder and generate files]",
         ]
-
-        subdirs = sorted(
-            [f.name for f in current_path.iterdir() if f.is_dir()]
-        )
-        entries.extend(subdirs)
+        entries.extend(_list_dirs(current_path))
 
         choice = inquirer.select(
             message=f"Current path: {current_path}",
             choices=entries,
-            instruction="(Arrow keys to browse, Enter to select)",
+            instruction="(Arrows / Enter)",
         ).execute()
 
         if choice == "[Up one folder]":
@@ -42,8 +102,29 @@ def navigate_folders(start_path: Path) -> Path:
             current_path = current_path / choice
 
 
-def navigate_markdown_path(start_path: Path) -> str:
-    current_path = start_path.resolve()
+def select_api_repo(notes_projects_root: Path) -> Path:
+    apis = _find_all_api_dirs(notes_projects_root)
+    if not apis:
+        raise RuntimeError("No '*-API' repos found under Notes-Projects.")
+
+    choices = [f"{p.parent.name}/{p.name}" for p in apis]
+    pick = inquirer.select(
+        message="Select API repo (for markdown):",
+        choices=choices,
+        instruction="(Arrows / Enter)",
+    ).execute()
+    idx = choices.index(pick)
+    return apis[idx]
+
+
+def navigate_markdown_in_api(api_root: Path) -> str:
+    """
+    Jump to api_root/src/seeds/Notes, then let the user drill down or add
+    a file. Returns a path relative to 'Notes/...'.
+    """
+    notes_dir = api_root / "src" / "seeds" / "Notes"
+    notes_dir.mkdir(parents=True, exist_ok=True)
+    current_path = notes_dir.resolve()
 
     while True:
         entries = [
@@ -51,16 +132,12 @@ def navigate_markdown_path(start_path: Path) -> str:
             "[Create new folder]",
             "[Enter markdown filename here]",
         ]
-
-        folders = sorted(
-            [f.name for f in current_path.iterdir() if f.is_dir()]
-        )
-        entries.extend(folders)
+        entries.extend(_list_dirs(current_path))
 
         choice = inquirer.select(
-            message=f"Navigate to markdown file folder: {current_path}",
+            message=f"Markdown root: {current_path}",
             choices=entries,
-            instruction="(Arrow keys to browse, Enter to select)",
+            instruction="(Arrows / Enter)",
         ).execute()
 
         if choice == "[Up one folder]":
@@ -79,20 +156,18 @@ def navigate_markdown_path(start_path: Path) -> str:
                 message="Markdown filename (no .md):"
             ).execute()
             if filename:
-                full_path = (current_path / f"{filename}.md").resolve()
-                full_path.parent.mkdir(parents=True, exist_ok=True)
-                full_path.touch(exist_ok=True)
-                parts = full_path.parts
-                try:
-                    notes_index = parts.index("Notes")
-                    trimmed = parts[notes_index + 1:]
-                    return "/".join(trimmed)
-                except ValueError:
-                    print("⚠️ 'Notes' folder not found in path.")
-                    return navigate_markdown_path(start_path)
+                full = (current_path / f"{filename}.md").resolve()
+                full.parent.mkdir(parents=True, exist_ok=True)
+                full.touch(exist_ok=True)
+                parts = full.parts
+                notes_idx = parts.index("Notes")
+                trimmed = parts[notes_idx + 1:]
+                return "/".join(trimmed)
         else:
             current_path = current_path / choice
 
+
+# ---------- main ----------
 
 def main() -> None:
     template_category = inquirer.select(
@@ -105,14 +180,15 @@ def main() -> None:
         choices=["project", "staging"],
     ).execute()
 
-    root_path = Path.cwd().resolve()
-    if export_mode == "project":
-        coding_backup_path = root_path.parents[1]
-    else:
-        coding_backup_path = root_path / "output"
+    notes_projects = _notes_projects_root()
 
-    print("\n📂 Navigate to export folder destination...")
-    export_path = navigate_folders(coding_backup_path)
+    if export_mode == "project":
+        export_root = notes_projects
+    else:
+        export_root = Path.cwd().resolve() / "output"
+
+    print("\n📂 Pick a '*-Project' repo, then a destination folder...")
+    project_root = navigate_projects(export_root)
 
     multiple = inquirer.confirm(
         message="Generate multiple files?", default=True
@@ -120,66 +196,57 @@ def main() -> None:
 
     component_names = []
     markdown_paths = []
-    header_texts = []
+    page_titles = []
     file_destinations = []
 
     if multiple:
         component_names = inquirer.text(
             message="Enter component names (comma-separated):"
         ).execute().split(",")
-
-        component_names = [
-            name.strip() for name in component_names if name.strip()
-        ]
+        component_names = [n.strip() for n in component_names if n.strip()]
 
         for name in component_names:
-            print(f"\n📁 Select folder for: '{name}'")
-            folder = navigate_folders(export_path)
+            print(f"\n📁 Select destination for: '{name}'")
+            folder = navigate_folders(project_root)
             file_destinations.append(folder)
 
         if template_category == "Pages":
+            api_root = select_api_repo(notes_projects)
             for name in component_names:
                 print(f"\n📄 Set markdown path for: {name}")
-                md_path = navigate_markdown_path(coding_backup_path)
+                md_path = navigate_markdown_in_api(api_root)
                 markdown_paths.append(md_path)
         else:
             markdown_paths = [""] * len(component_names)
 
-        header_texts = inquirer.text(
-            message="Enter header texts (comma-separated):"
+        page_titles = inquirer.text(
+            message=("Enter PageTitle values (comma-separated, optional):")
         ).execute().split(",")
+        page_titles = [t.strip() for t in page_titles if t.strip()]
 
-        header_texts = [
-            text.strip() for text in header_texts if text.strip()
-        ]
     else:
         name = inquirer.text(message="Component name:").execute().strip()
         component_names.append(name)
 
-        print(f"\n📁 Select folder for: {name}")
-        file_destinations.append(navigate_folders(export_path))
+        print(f"\n📁 Select destination for: {name}")
+        file_destinations.append(navigate_folders(project_root))
 
         if template_category == "Pages":
+            api_root = select_api_repo(notes_projects)
             print(f"\n📄 Set markdown path for: {name}")
-            markdown_paths.append(
-                navigate_markdown_path(coding_backup_path)
-            )
+            markdown_paths.append(navigate_markdown_in_api(api_root))
         else:
             markdown_paths.append("")
 
-        header = inquirer.text(
-            message="Enter header text (optional):"
+        title = inquirer.text(
+            message="Enter PageTitle (optional):"
         ).execute().strip()
-        header_texts.append(header)
+        page_titles.append(title)
 
     for i, name in enumerate(component_names):
         folder_path = file_destinations[i]
-        markdown_path = (
-            markdown_paths[i] if i < len(markdown_paths) else None
-        )
-        header_text = (
-            header_texts[i] if i < len(header_texts) else None
-        )
+        markdown_path = markdown_paths[i] if i < len(markdown_paths) else None
+        page_title = page_titles[i] if i < len(page_titles) else None
 
         template_type = (
             "tsx" if template_category == "Pages"
@@ -191,12 +258,13 @@ def main() -> None:
             template_type=template_type,
             component_name=name,
             folder_path=str(folder_path),
-            header_text_override=header_text,
+            header_text_override=page_title,
             markdown_path_override=markdown_path,
         )
 
         ext = "ts" if template_type == "nav" else "tsx"
         output_file = folder_path / f"{name}.{ext}"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(content)

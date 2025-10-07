@@ -41,18 +41,18 @@ def get_template(
 ) -> str:
     if template_type == "tsx":
         component_name = kwargs["component_name"]
-        header_text = (
+        markdown_path = kwargs.get("markdown_path_override", "").lstrip("/\\")
+        page_title = (
             kwargs.get("header_text_override")
             or component_name.replace("_", " ")
         )
-        markdown_path = kwargs.get("markdown_path_override", "").lstrip("/\\")
         return tsx_page_template(
             component_name=component_name,
-            header_text=header_text,
-            markdown_path=markdown_path
+            page_title=page_title,
+            markdown_path=markdown_path,
         )
 
-    elif template_type == "nav":
+    if template_type == "nav":
         return nav_topic_template(**kwargs)
 
     return ""
